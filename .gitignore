@@ -1,0 +1,34 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.env
+.env.*
+!.env.example
+venv/
+.venv/
+ENV/
+env/
+
+# Cloudflare Tunnel credentials (prevent secret leaks)
+deploy/*.json
+!deploy/*.example.json
+
+# Downloaded files & temporary storage
+youtunes_downloads/
+downloads/
+*.tmp
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE & Editor files
+.idea/
+.vscode/
+*.swp
+*.swo

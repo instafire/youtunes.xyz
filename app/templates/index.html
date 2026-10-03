@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTunes</title>
+  <meta name="description" content="Download audio and video from YouTube, SoundCloud, and more.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css?v=3.0">
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <header class="topbar">
+    <a href="/" class="wordmark">YouTunes</a>
+    <nav class="tabs">
+      <button class="tab active" id="tabExtract" onclick="switchTab('extract')">Extract</button>
+      <button class="tab" id="tabLibrary" onclick="switchTab('library')">
+        Library
+        <span class="tab-count" id="stashBadge">0</span>
+      </button>
+    </nav>
+    <div class="topbar-end">
+      <kbd class="shortcut-hint">/</kbd>
+      <span class="shortcut-label">to search</span>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="app-main">
+
+    <!-- Extract View -->
+    <div id="viewExtract" class="view active">
+
+      <!-- Search / URL Input -->
+      <div class="input-area">
+        <form id="consoleForm" class="search-form">
+          <div class="search-field">
+            <i data-lucide="search" class="search-icon"></i>
+            <input 
+              type="text" 
+              id="urlOrQueryInput" 
+              placeholder="Paste a YouTube link or search for music..." 
+              autocomplete="off"
+              spellcheck="false"
+              autofocus
+            >
+            <button type="button" id="pasteButton" class="btn-ghost" title="Paste from clipboard">
+              <i data-lucide="clipboard-paste"></i>
+            </button>
+            <button type="submit" id="submitButton" class="btn-primary">
+              <span>Go</span>
+              <i data-lucide="arrow-right"></i>
+            </button>
+          </div>
+        </form>
+        <p class="supported-note">YouTube, YouTube Music, SoundCloud, Bandcamp, Vimeo, TikTok</p>
+      </div>
+
+      <!-- Extraction Panel (hidden until a track is inspected) -->
+      <section id="extractionPanel" class="extraction-panel hidden">
+        <div class="track-row">
+          <div class="track-art-wrap">
+            <img 
+              id="trackArt" 
+              src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3C/svg%3E" 
+              alt="" 
+              class="track-art"
+            >
+            <button id="artPlayBtn" class="art-play-btn" title="Preview audio">
+              <i data-lucide="play"></i>
+            </button>
+            <span id="trackDuration" class="duration-badge">0:00</span>
+          </div>
+
+          <div class="track-info">
+            <span id="trackArtist" class="track-artist">Artist</span>
+            <h2 id="trackTitle" class="track-title">Track Title</h2>
+            <a id="trackSource" href="#" target="_blank" rel="noopener" class="track-source">
+              <i data-lucide="external-link"></i>
+              <span>Open original</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Format Selector -->
+        <div class="format-section">
+          <div class="format-tabs">
+            <button class="format-tab active" id="btnAudio" onclick="switchMatrix('audio')">
+              <i data-lucide="music"></i>
+              Audio
+            </button>
+            <button class="format-tab" id="btnVideo" onclick="switchMatrix('video')">
+              <i data-lucide="film"></i>
+              Video
+            </button>
+          </div>
+          <div id="formatGrid" class="format-grid">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="action-bar">
+          <button id="btnStash" class="btn-secondary">
+            <i data-lucide="bookmark-plus"></i>
+            Save to Library
+          </button>
+          <button id="btnDownload" class="btn-primary btn-lg">
+            <i data-lucide="download"></i>
+            <span id="downloadLabel">Download</span>
+          </button>
+        </div>
+
+        <!-- Progress -->
+        <div id="progressBox" class="progress-box hidden">
+          <div class="progress-track">
+            <div class="progress-fill"></div>
+          </div>
+          <span id="progressMsg" class="progress-msg">Converting...</span>
+        </div>
+      </section>
+
+      <!-- Search Results -->
+      <section id="searchResults" class="search-results hidden">
+        <div class="results-header">
+          <h3 id="searchTitle" class="results-title">Results</h3>
+          <button class="btn-ghost-sm" onclick="closeSearch()">
+            <i data-lucide="x"></i>
+            Clear
+          </button>
+        </div>
+        <div class="results-list" id="resultsList">
+          <!-- Dynamically populated -->
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Library View -->
+    <div id="viewLibrary" class="view hidden">
+      <div class="library-header">
+        <h3 class="library-title">Your Library</h3>
+        <button class="btn-ghost-sm" onclick="clearStash()">Clear all</button>
+      </div>
+
+      <div id="libraryList" class="results-list">
+        <!-- Populated from localStorage -->
+      </div>
+
+      <div id="emptyLibrary" class="empty-state hidden">
+        <i data-lucide="music-2" class="empty-icon"></i>
+        <p class="empty-text">No saved tracks yet</p>
+        <p class="empty-sub">Tracks you extract will appear here for quick access.</p>
+        <button class="btn-secondary" onclick="switchTab('extract')">Start extracting</button>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Player Dock -->
+  <footer class="player-dock" id="playerDock">
+    <div class="dock-left">
+      <img 
+        id="dockArt" 
+        src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3C/svg%3E" 
+        alt="" 
+        class="dock-art"
+      >
+      <div class="dock-meta">
+        <span id="dockTitle" class="dock-track">No track loaded</span>
+        <span id="dockArtist" class="dock-artist">Select a track to preview</span>
+      </div>
+    </div>
+
+    <div class="dock-center">
+      <div class="transport">
+        <button class="transport-btn" id="dockPrevBtn"><i data-lucide="skip-back"></i></button>
+        <button class="transport-play" id="dockPlayPauseBtn"><i data-lucide="play"></i></button>
+        <button class="transport-btn" id="dockNextBtn"><i data-lucide="skip-forward"></i></button>
+      </div>
+      <div class="scrubber">
+        <span class="time" id="dockCurrentTime">0:00</span>
+        <div class="scrub-track" id="dockScrubTrack">
+          <div class="scrub-fill" id="dockScrubFill"></div>
+          <input type="range" id="dockScrubRange" min="0" max="100" value="0" class="scrub-input">
+        </div>
+        <span class="time" id="dockTotalTime">0:00</span>
+      </div>
+    </div>
+
+    <div class="dock-right">
+      <canvas id="dockCanvas" class="dock-viz" width="64" height="20"></canvas>
+      <div class="volume">
+        <button class="transport-btn" id="dockMuteBtn"><i data-lucide="volume-2" id="dockVolIcon"></i></button>
+        <input type="range" id="dockVolSlider" min="0" max="1" step="0.05" value="0.85" class="vol-range">
+      </div>
+      <button id="dockSaveBtn" class="transport-btn" title="Download current track">
+        <i data-lucide="download"></i>
+      </button>
+    </div>
+  </footer>
+
+  <audio id="audioEl" preload="metadata"></audio>
+  <div id="toastLayer" class="toast-layer"></div>
+
+  <script src="/static/js/app.js?v=3.0"></script>
+</body>
+</html>

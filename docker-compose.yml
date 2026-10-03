@@ -1,0 +1,32 @@
+services:
+  youtunes-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: youtunes-web
+    restart: unless-stopped
+    ports:
+      - "8750:8080"
+    environment:
+      - PORT=8080
+      - PYTHONUNBUFFERED=1
+    networks:
+      - youtunes-network
+
+  youtunes-tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: youtunes-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml --protocol http2 run
+    volumes:
+      - ./deploy/cloudflared.yml:/etc/cloudflared/config.yml:ro
+      - ./deploy/c0a43dbb-c89f-45be-a37a-2c4ab86eb7c6.json:/etc/cloudflared/c0a43dbb-c89f-45be-a37a-2c4ab86eb7c6.json:ro
+    depends_on:
+      - youtunes-web
+    networks:
+      - youtunes-network
+
+networks:
+  youtunes-network:
+    name: youtunes-network
+    driver: bridge

@@ -1,0 +1,9 @@
+tunnel: c0a43dbb-c89f-45be-a37a-2c4ab86eb7c6
+credentials-file: /etc/cloudflared/c0a43dbb-c89f-45be-a37a-2c4ab86eb7c6.json
+
+ingress:
+  - hostname: youtunes.xyz
+    service: http://youtunes-web:8080
+  - hostname: www.youtunes.xyz
+    service: http://youtunes-web:8080
+  - service: http_status:404
