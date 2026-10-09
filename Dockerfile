@@ -1,20 +1,26 @@
 FROM python:3.11-slim
 
-# Install system dependencies including ffmpeg
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+# Install FFmpeg and the utilities used by the health check and non-root setup.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg \
-    curl \
     ca-certificates \
+    curl \
+    ffmpeg \
+    passwd \
+    && groupadd --system --gid 10001 app \
+    && useradd --system --uid 10001 --gid app --home-dir /nonexistent --no-create-home app \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt ./
+RUN python -m pip install --no-cache-dir --disable-pip-version-check -r requirements.txt
 
-# Copy application source
-COPY app/ ./app/
+COPY --chown=app:app app/ ./app/
+
+USER 10001:10001
 
 EXPOSE 8080
 
