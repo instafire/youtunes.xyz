@@ -159,8 +159,49 @@ function switchTab(id) {
   icons();
 }
 
-function isUrl(s) {
-  return /^(https?:\/\/)?(www\.|m\.)?(youtube\.com|youtu\.be|music\.youtube\.com|soundcloud\.com|vimeo\.com|tiktok\.com)\/.+$/i.test(s);
+const SUPPORTED_MEDIA_DOMAINS = [
+  "youtube.com", "youtube-nocookie.com", "youtu.be", "soundcloud.com",
+  "bandcamp.com", "vimeo.com", "tiktok.com", "twitter.com", "x.com"
+];
+
+function isUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return false;
+  const candidate = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    const parsed = new URL(candidate);
+    const host = parsed.hostname.toLowerCase().replace(/\.$/, "");
+    return ["http:", "https:"].includes(parsed.protocol) &&
+      SUPPORTED_MEDIA_DOMAINS.some(domain => host === domain || host.endsWith(`.${domain}`)) &&
+      parsed.pathname !== "/";
+  } catch (e) {
+    return false;
+  }
+}
+
+function safeHttpUrl(value, fallback = "") {
+  try {
+    const raw = String(value || "").trim();
+    const candidate = /^https?:\/\//i.test(raw) || raw.startsWith("//") ? raw : `https://${raw}`;
+    const parsed = new URL(candidate);
+    if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password) return fallback;
+    const host = parsed.hostname.toLowerCase().replace(/\.$/, "").replace(/^\[|\]$/g, "");
+    if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") ||
+        host.endsWith(".lan") || host.endsWith(".home.arpa") || host.endsWith(".internal") ||
+        host.endsWith(".test")) return fallback;
+    const octets = host.split(".").map(Number);
+    if (octets.length === 4 && octets.every(n => Number.isInteger(n) && n >= 0 && n <= 255)) {
+      const [a, b] = octets;
+      if (a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) ||
+          (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) ||
+          (a === 100 && b >= 64 && b <= 127) || a >= 224) return fallback;
+    }
+    if (host === "::" || host === "::1" || host.startsWith("fc") || host.startsWith("fd") ||
+        host.startsWith("fe") || host.startsWith("ff") || host.startsWith("::ffff:")) return fallback;
+    return parsed.href;
+  } catch (e) {
+    return fallback;
+  }
 }
 
 function fmtTime(sec) {
@@ -205,11 +246,11 @@ async function inspectUrl(url) {
 }
 
 function renderTrack(data) {
-  trackArt.src = data.thumbnail || DEFAULT_ART;
+  trackArt.src = safeHttpUrl(data.thumbnail, DEFAULT_ART);
   trackTitle.textContent = data.title || "Unknown";
   trackArtist.textContent = data.uploader || "Unknown";
   trackDuration.textContent = fmtTime(data.duration);
-  trackSource.href = data.webpage_url || "#";
+  trackSource.href = safeHttpUrl(data.webpage_url, "#");
   artPlayBtn.onclick = () => loadPlayer(data, true);
   switchMatrix(matrixMode);
   icons();
@@ -232,12 +273,24 @@ function switchMatrix(mode) {
         currentFormat = opt.format_id;
         downloadLabel.textContent = "Download " + opt.quality;
       };
-      el.innerHTML = '<span class="format-name">' + opt.quality + '</span><span class="format-detail">' + (opt.sample_rate || opt.label) + '</span><span class="format-ext">' + opt.ext.toUpperCase() + '</span>';
+      const name = document.createElement("span");
+      name.className = "format-name";
+      name.textContent = String(opt.quality || "Media");
+      const detail = document.createElement("span");
+      detail.className = "format-detail";
+      detail.textContent = String(opt.sample_rate || opt.label || "");
+      const extension = document.createElement("span");
+      extension.className = "format-ext";
+      extension.textContent = String(opt.ext || "").toUpperCase();
+      el.append(name, detail, extension);
       formatGrid.appendChild(el);
     });
     downloadLabel.textContent = "Download " + list[0].quality;
   } else {
-    formatGrid.innerHTML = '<span style="color:var(--text-muted);font-size:0.85rem">No formats available</span>';
+    const empty = document.createElement("span");
+    empty.className = "format-detail";
+    empty.textContent = "No formats available";
+    formatGrid.appendChild(empty);
   }
   icons();
 }
@@ -260,7 +313,7 @@ async function doDownload() {
     progressBox.classList.add("hidden");
     btnDownload.disabled = false;
     downloadLabel.textContent = "Download";
-    showToast("Done! File delivered.", "success");
+    showToast("Download requested. Check your browser's downloads.", "info");
   }, 3500);
 }
 
@@ -282,13 +335,47 @@ async function doSearch(query) {
 
 function renderResults(results) {
   resultsList.innerHTML = "";
-  results.forEach(item => {
+  (Array.isArray(results) ? results : [])
+    .filter(item => item && typeof item === "object")
+    .forEach(item => {
     const div = document.createElement("div");
     div.className = "result-item";
-    div.onclick = (e) => { if (!e.target.closest(".result-action")) inspectUrl(item.url); };
-    div.innerHTML = '<img src="' + (item.thumbnail || DEFAULT_ART) + '" alt="" class="result-art"><div class="result-info"><span class="result-name">' + item.title + '</span><span class="result-channel">' + item.uploader + '</span></div><span class="result-duration">' + fmtTime(item.duration) + '</span><button class="result-action" onclick="event.stopPropagation(); inspectUrl(\'' + item.url + '\')"><i data-lucide="download"></i></button>';
+    const sourceUrl = safeHttpUrl(item.url, "");
+    div.addEventListener("click", event => {
+      if (!event.target.closest(".result-action") && sourceUrl) inspectUrl(sourceUrl);
+    });
+    const image = document.createElement("img");
+    image.src = safeHttpUrl(item.thumbnail, DEFAULT_ART);
+    image.alt = "";
+    image.className = "result-art";
+    const info = document.createElement("div");
+    info.className = "result-info";
+    const title = document.createElement("span");
+    title.className = "result-name";
+    title.textContent = String(item.title || "Untitled");
+    const channel = document.createElement("span");
+    channel.className = "result-channel";
+    channel.textContent = String(item.uploader || "");
+    info.append(title, channel);
+    const duration = document.createElement("span");
+    duration.className = "result-duration";
+    duration.textContent = fmtTime(item.duration);
+    const action = document.createElement("button");
+    action.type = "button";
+    action.className = "result-action";
+    action.disabled = !sourceUrl;
+    action.setAttribute("aria-label", "Open media");
+    action.addEventListener("click", event => {
+      event.stopPropagation();
+      if (sourceUrl) inspectUrl(sourceUrl);
+    });
+    const icon = document.createElement("i");
+    icon.dataset.lucide = "download";
+    action.appendChild(icon);
+    div.append(image, info, duration, action);
     resultsList.appendChild(div);
   });
+  icons();
 }
 
 function closeSearch() {
@@ -297,14 +384,15 @@ function closeSearch() {
 }
 
 function loadPlayer(track, autoplay) {
-  if (!track.stream_url) {
+  const streamUrl = safeHttpUrl(track.stream_url, "");
+  if (!streamUrl) {
     showToast("No audio preview available; use Download instead", "warning");
     return;
   }
-  dockArt.src = track.thumbnail || DEFAULT_ART;
+  dockArt.src = safeHttpUrl(track.thumbnail, DEFAULT_ART);
   dockTitle.textContent = track.title || "Untitled";
   dockArtist.textContent = track.uploader || "Unknown";
-  audioEl.src = track.stream_url;
+  audioEl.src = streamUrl;
   if (autoplay) audioEl.play().catch(() => {});
 }
 
@@ -346,7 +434,11 @@ function initViz() {
 function loadStash() {
   try {
     const d = localStorage.getItem("youtunes_stash");
-    if (d) { stash = JSON.parse(d); stashBadge.textContent = stash.length; }
+    if (d) {
+      const saved = JSON.parse(d);
+      stash = Array.isArray(saved) ? saved.filter(item => item && typeof item === "object").slice(0, 30) : [];
+      stashBadge.textContent = stash.length;
+    }
   } catch (e) {}
 }
 
@@ -374,11 +466,48 @@ function renderLibrary() {
   emptyLibrary.classList.add("hidden");
   libraryList.classList.remove("hidden");
   libraryList.innerHTML = "";
-  stash.forEach(item => {
+  (Array.isArray(stash) ? stash : []).forEach(item => {
     const div = document.createElement("div");
     div.className = "result-item";
-    div.onclick = () => { switchTab("extract"); inspectUrl(item.url); };
-    div.innerHTML = '<img src="' + (item.thumbnail || DEFAULT_ART) + '" alt="" class="result-art"><div class="result-info"><span class="result-name">' + item.title + '</span><span class="result-channel">' + item.uploader + '</span></div><span class="result-duration">' + item.timestamp + '</span><button class="result-action" onclick="event.stopPropagation(); switchTab(\'extract\'); inspectUrl(\'' + item.url + '\')"><i data-lucide="download"></i></button>';
+    const sourceUrl = safeHttpUrl(item.url, "");
+    div.addEventListener("click", event => {
+      if (!event.target.closest(".result-action") && sourceUrl) {
+        switchTab("extract");
+        inspectUrl(sourceUrl);
+      }
+    });
+    const image = document.createElement("img");
+    image.src = safeHttpUrl(item.thumbnail, DEFAULT_ART);
+    image.alt = "";
+    image.className = "result-art";
+    const info = document.createElement("div");
+    info.className = "result-info";
+    const title = document.createElement("span");
+    title.className = "result-name";
+    title.textContent = String(item.title || "Untitled");
+    const channel = document.createElement("span");
+    channel.className = "result-channel";
+    channel.textContent = String(item.uploader || "");
+    info.append(title, channel);
+    const timestamp = document.createElement("span");
+    timestamp.className = "result-duration";
+    timestamp.textContent = String(item.timestamp || "");
+    const action = document.createElement("button");
+    action.type = "button";
+    action.className = "result-action";
+    action.disabled = !sourceUrl;
+    action.setAttribute("aria-label", "Open media");
+    action.addEventListener("click", event => {
+      event.stopPropagation();
+      if (sourceUrl) {
+        switchTab("extract");
+        inspectUrl(sourceUrl);
+      }
+    });
+    const icon = document.createElement("i");
+    icon.dataset.lucide = "download";
+    action.appendChild(icon);
+    div.append(image, info, timestamp, action);
     libraryList.appendChild(div);
   });
   icons();
@@ -396,7 +525,11 @@ function showToast(msg, type) {
   const t = document.createElement("div");
   t.className = "toast-pill";
   const ic = type === "success" ? "check-circle-2" : type === "warning" ? "alert-triangle" : type === "error" ? "x-circle" : "info";
-  t.innerHTML = '<i data-lucide="' + ic + '"></i><span>' + msg + '</span>';
+  const icon = document.createElement("i");
+  icon.dataset.lucide = ic;
+  const text = document.createElement("span");
+  text.textContent = String(msg ?? "");
+  t.append(icon, text);
   toastLayer.appendChild(t);
   icons();
   setTimeout(() => {

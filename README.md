@@ -1,69 +1,71 @@
 # YouTunes (youtunes.xyz)
 
-> Modern, full-featured, zero-ad YouTube music & video downloader and streaming web application built with FastAPI, yt-dlp, FFmpeg, and Docker, secured behind Cloudflare Tunnel.
+> YouTube music and video search, extraction, downloading, and streaming web application built with FastAPI, yt-dlp, FFmpeg, Docker, and Cloudflare Tunnel.
 
 ---
 
-## 🚀 Overview
+## Overview
 
-- **Live Domain:** `youtunes.xyz` / `www.youtunes.xyz`
-- **Host Port:** `8750` (`http://localhost:8750`)
-- **Docker Network:** `youtunes-network`
+- **Live domain:** `youtunes.xyz` / `www.youtunes.xyz`
+- **Local host port:** `8750` (`http://127.0.0.1:8750`)
+- **Docker network:** `youtunes-network`
 - **Cloudflare Tunnel ID:** `c0a43dbb-c89f-45be-a37a-2c4ab86eb7c6`
-- **Tunnel Hostname:** `c0a43dbb-c89f-45be-a37a-2c4ab86eb7c6.cfargotunnel.com`
+- **Tunnel hostname:** `c0a43dbb-c89f-45be-a37a-2c4ab86eb7c6.cfargotunnel.com`
 
----
+## Features
 
-## ⚡ Features
+1. Search tracks by artist or title, or paste a supported YouTube, YouTube Music, SoundCloud, Bandcamp, Vimeo, TikTok, or Twitter/X URL.
+2. Download audio as MP3, M4A/AAC, or FLAC, and video in available resolutions up to 4K.
+3. Preview audio in the browser and save extracted tracks in a local browser library.
+4. Responsive single-page interface with a dark theme.
 
-1. **Instant YouTube Search & Convert:**
-   - Search by artist or title directly in the app without requiring an API key.
-   - Paste direct YouTube, Shorts, Music, SoundCloud, or Twitter/X URLs.
-2. **Lossless Audio & HD Video Downloads:**
-   - **Audio:** MP3 (320 kbps & 192 kbps), original M4A/AAC, and lossless FLAC.
-   - **Video:** 4K UHD, 2K QHD, Full HD 1080p, HD 720p, 480p, 360p with audio merged.
-3. **In-Browser Audio Player:**
-   - Direct audio stream playback with live scrubber, volume control, and time tracking.
-4. **Curated & Trending Tracks:**
-   - Pre-loaded popular music and viral tracks ready to stream or download in 1 click.
-5. **Modern Glassmorphic UI:**
-   - Dark mode aesthetic with ambient glowing gradients, responsive on mobile and desktop.
+## Security and service limits
 
----
+- Media extraction accepts HTTP(S) URLs only from the supported public media-provider domains. Local/private IP addresses, nonstandard ports, credentials embedded in URLs, and other schemes are rejected before yt-dlp runs.
+- Search and extraction work is limited to two concurrent yt-dlp tasks, and a single download is capped at 512 MiB.
+- The web container runs as a non-root user with a read-only root filesystem and a temporary filesystem for downloads. The host port is bound to `127.0.0.1`; the Cloudflare Tunnel reaches the app over the private Compose network, so it does not require a public host-port mapping.
+- The app is same-origin only and does not enable wildcard CORS.
 
-## 🐳 Docker Services
+## Docker services
 
-The stack is managed via `docker-compose.yml`:
+The stack is managed by `docker-compose.yml`:
 
-- **`youtunes-web`**: Python 3.11 container with `yt-dlp` and `ffmpeg` running the FastAPI application on internal port `8080` (mapped to host port `8750`).
-- **`youtunes-tunnel`**: Official Cloudflare `cloudflared` edge connector routing traffic from `youtunes.xyz` directly to `youtunes-web`.
+- **`youtunes-web`** runs FastAPI and FFmpeg on internal port `8080`; it is available on the host only at `127.0.0.1:8750`.
+- **`youtunes-tunnel`** routes traffic from `youtunes.xyz` and `www.youtunes.xyz` to `youtunes-web` over the Compose network.
 
-### Tunnel Configuration
+### Tunnel configuration
 
 1. Copy `deploy/credentials.example.json` to `deploy/<YOUR_TUNNEL_ID>.json` and fill in your Cloudflare credentials.
 2. Update the tunnel ID and credentials file path in `deploy/cloudflared.yml` and `docker-compose.yml`.
+3. Keep the real credential JSON out of version control; the deploy JSON ignore rule is already in place.
 
 ### Commands
 
-```powershell
-# Start the stack in background
+```sh
+# Start the stack
 docker compose up -d
 
-# Check logs
+# Follow logs
 docker compose logs -f
 
-# Check health
-curl http://localhost:8750/api/health
+# Check the local health endpoint
+curl http://127.0.0.1:8750/api/health
 ```
 
+## Development and tests
 
----
+Install the development dependencies and run the local test suite:
 
-## 🌐 Cloudflare DNS Configuration
+```sh
+python -m pip install -r requirements-dev.txt
+python -m pytest -q
+```
 
-In the Cloudflare Dashboard under `youtunes.xyz` -> **DNS** -> **Records**:
+## Cloudflare DNS
 
-| Type | Name | Target | Proxy Status |
+In the Cloudflare Dashboard under `youtunes.xyz` → **DNS** → **Records**:
+
+| Type | Name | Target | Proxy status |
 | :--- | :--- | :--- | :--- |
-| `CNAME` | `@` | `c0a43dbb-c89f-45be-a37a-2c4ab86eb7c6.cfargotunnel.com` | Proxied ☁️ (Orange) |
-| `CNAME` | `www` | `c0a43dbb-c89f-45be-a37a-2c4ab86eb7c6.cfargotunnel.com` | Proxied ☁️ (Orange) |
+| `CNAME` | `@` | `c0a43dbb-c89f-45be-a37a-2c4ab86eb7c6.cfargotunnel.com` | Proxied |
+| `CNAME` | `www` | `c0a43dbb-c89f-45be-a37a-2c4ab86eb7c6.cfargotunnel.com` | Proxied |

@@ -1,0 +1,13 @@
+.git
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example
+deploy/*.json
+!deploy/*.example.json
+tests/
+downloads/
+youtunes_downloads/

@@ -6,7 +6,14 @@ services:
     container_name: youtunes-web
     restart: unless-stopped
     ports:
-      - "8750:8080"
+      - "127.0.0.1:8750:8080"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=2g,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     environment:
       - PORT=8080
       - PYTHONUNBUFFERED=1
