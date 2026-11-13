@@ -7,11 +7,11 @@ import tempfile
 from pathlib import Path
 from urllib.parse import urlsplit
 
+import yt_dlp
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-import yt_dlp
 
 app = FastAPI(title="YouTunes Studio", version="2.0.0")
 
@@ -132,7 +132,7 @@ async def run_media_task(func):
     """Bound concurrent yt-dlp work and fail quickly when the service is busy."""
     try:
         await asyncio.wait_for(MEDIA_SEMAPHORE.acquire(), timeout=0.25)
-    except asyncio.TimeoutError as exc:
+    except TimeoutError as exc:
         raise HTTPException(
             status_code=503, detail="Media service is busy; retry shortly."
         ) from exc
@@ -142,8 +142,13 @@ async def run_media_task(func):
     except asyncio.CancelledError:
         try:
             await asyncio.shield(future)
-        except (asyncio.CancelledError, Exception):
+        except asyncio.CancelledError:
             pass
+        except Exception as exc:  # noqa: BLE001 -- drain-and-discard: cancellation must win
+            logger.debug(
+                "Discarding media task result after cancellation (%s)",
+                type(exc).__name__,
+            )
         raise
     finally:
         MEDIA_SEMAPHORE.release()
